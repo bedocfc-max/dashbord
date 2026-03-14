@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>نظام أتمتة Siebel</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>نظام أتمتة Siebel</h1>
+        <p>أدخل بيانات الدخول ثم اضغط تشغيل.</p>
+
+        <!-- Login Form -->
+        <div id="login-form">
+            <div class="form-group">
+                <label>اسم المستخدم</label>
+                <input type="text" id="username" placeholder="أدخل اسم المستخدم" required>
+            </div>
+            <div class="form-group">
+                <label>كلمة المرور</label>
+                <input type="password" id="password" placeholder="أدخل كلمة المرور" required>
+            </div>
+            <button id="run-btn" onclick="runAutomation()">تشغيل</button>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="hidden">
+            <span class="spinner"></span>
+            <span id="loading-msg" style="margin-right:8px;">جاري التشغيل...</span>
+        </div>
+
+        <!-- OTP Input Section -->
+        <div id="otp-section" class="otp-section hidden">
+            <h3>📱 أدخل كود OTP</h3>
+            <p>تم إرسال كود OTP إلى هاتفك. أدخله هنا ثم اضغط إرسال.</p>
+            <input type="text" id="otp-input" placeholder="000000" maxlength="20" autocomplete="one-time-code">
+            <button onclick="submitOtp()">إرسال OTP</button>
+        </div>
+
+        <!-- Result -->
+        <div id="result" class="hidden">
+            <h2>النتيجة</h2>
+            <div id="result-content"></div>
+        </div>
+    </div>
+
+<script>
+// -------------------------------------------------------
+// Start Phase 1 (Login → Send OTP)
+// -------------------------------------------------------
+function runAutomation() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+
+    if (!username || !password) {
+        alert("الرجاء إدخال اسم المستخدم وكلمة المرور");
+        return;
+    }
+
+    hideAll();
+    showLoading("جاري تسجيل الدخول وإرسال OTP...");
+    setRunBtn(true);
+
+    fetch('/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'running') {
+            pollStatus();
+        } else {
+            handleResult(data);
+        }
+    })
+    .catch(() => handleResult({
+        status: 'error',
+        message: 'تعذّر الاتصال بالخادم',
+        data: '',
+        execution_time: '0 seconds'
+    }));
+}
+
+// -------------------------------------------------------
+// Submit OTP (Phase 2)
+// -------------------------------------------------------
+function submitOtp() {
+    const otp = document.getElementById('otp-input').value.trim();
+    if (!otp) {
+        alert("الرجاء إدخال كود OTP");
+        return;
+    }
+
+    document.getElementById('otp-section').classList.add('hidden');
+    showLoading("جاري التحقق من OTP...");
+
+    fetch('/submit-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'running') {
+            pollStatus();
+        } else {
+            handleResult(data);
+        }
+    })
+    .catch(() => handleResult({
+        status: 'error',
+        message: 'تعذّر إرسال OTP',
+        data: '',
+        execution_time: '0 seconds'
+    }));
+}
+
+// -------------------------------------------------------
+// Poll /status
+// -------------------------------------------------------
+function pollStatus() {
+    fetch('/status')
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'running') {
+            setTimeout(pollStatus, 1000);
+        } else {
+            handleResult(data);
+        }
+    })
+    .catch(() => {
+        setTimeout(pollStatus, 2000); // retry on network hiccup
+    });
+}
+
+// -------------------------------------------------------
+// Route result to correct UI state
+// -------------------------------------------------------
+function handleResult(result) {
+    hideAll();
+    setRunBtn(false);
+
+    if (result.status === 'waiting_for_otp') {
+        document.getElementById('otp-section').classList.remove('hidden');
+        document.getElementById('otp-input').value = '';
+        document.getElementById('otp-input').focus();
+    } else {
+        showResult(result);
+    }
+}
+
+// -------------------------------------------------------
+// Display final result
+// -------------------------------------------------------
+function showResult(result) {
+    document.getElementById('result').classList.remove('hidden');
+    const content = document.getElementById('result-content');
+    const isSuccess = result.status === 'success';
+
+    content.className = isSuccess ? 'success' : 'error';
+
+    // Format error message: bold the step name if present
+    let msgHtml = escapeHtml(result.message || '');
+    // highlight quoted step names (anything between '')
+    msgHtml = msgHtml.replace(/&#x27;([^&#]+)&#x27;/g, '<strong>$1</strong>');
+    msgHtml = msgHtml.replace(/'([^']+)'/g, '<strong>$1</strong>');
+
+    content.innerHTML = `
+        <p><strong>الحالة:</strong> ${isSuccess ? '✅ نجاح' : '❌ فشل'}</p>
+        <p><strong>الرسالة:</strong> ${msgHtml}</p>
+        ${result.data ? `<p><strong>التفاصيل:</strong> ${escapeHtml(result.data)}</p>` : ''}
+        <p><strong>وقت التنفيذ:</strong> ${escapeHtml(result.execution_time)}</p>
+    `;
+}
+
+// -------------------------------------------------------
+// Helpers
+// -------------------------------------------------------
+function showLoading(msg) {
+    document.getElementById('loading-msg').textContent = msg || 'جاري التشغيل...';
+    document.getElementById('loading').classList.remove('hidden');
+}
+
+function hideAll() {
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('otp-section').classList.add('hidden');
+    document.getElementById('result').classList.add('hidden');
+}
+
+function setRunBtn(disabled) {
+    document.getElementById('run-btn').disabled = disabled;
+}
+
+function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(str));
+    return d.innerHTML;
+}
+</script>
+
+</body>
+</html>

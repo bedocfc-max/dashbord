@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Build & dist
+build/
+dist/
+
+# Logs
+logs/
+
+# PyInstaller spec (optional - remove if you want to track it)
+# *.spec
+
+# Drivers
+msedgedriver.exe
+
+# OS
+.DS_Store
+Thumbs.db
