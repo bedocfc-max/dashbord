@@ -55,7 +55,7 @@ def get_driver_path():
     if os.path.exists(driver_path):
         return driver_path
 
-    raise FileNotFoundError("msedgedriver.exe not found.")
+    return None
 
 
 # =========================
@@ -158,9 +158,13 @@ def run_automation_phase1(username, password):
 
     try:
         driver_path = get_driver_path()
-        service = Service(executable_path=driver_path)
-
-        driver = webdriver.Edge(service=service, options=options)
+        if driver_path:
+            service = Service(executable_path=driver_path)
+            driver = webdriver.Edge(service=service, options=options)
+        else:
+            # Fall back to Selenium Manager when local driver is not bundled.
+            logging.info("msedgedriver.exe not found locally; using Selenium Manager")
+            driver = webdriver.Edge(options=options)
         wait = WebDriverWait(driver, TIMEOUT)
 
         # ---- Login ----

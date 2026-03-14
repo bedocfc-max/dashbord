@@ -1,6 +1,10 @@
 import os
+import sys
 import logging
+import socket
 import threading
+import time
+import webbrowser
 from flask import Flask, render_template, jsonify, request
 from automation import run_automation_phase1, run_automation_phase2
 
@@ -191,6 +195,34 @@ def get_status():
 # =========================
 # Run App
 # =========================
+def open_browser_when_ready(url, host, port, timeout=20):
+    """Wait for Flask socket to open, then launch the default browser."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=1):
+                webbrowser.open(url)
+                logging.info(f"Browser opened at {url}")
+                return
+        except OSError:
+            time.sleep(0.3)
+
+    logging.warning(f"Server started but browser was not auto-opened in time: {url}")
+
+
 if __name__ == '__main__':
-    logging.info("Starting Flask server on 0.0.0.0:5000")
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+    host = '127.0.0.1'
+    port = 5000
+    app_url = f'http://{host}:{port}'
+
+    logging.info(f"Starting Flask server on {app_url}")
+
+    # In packaged EXE mode, open the app URL automatically for a desktop-like experience.
+    if getattr(sys, 'frozen', False):
+        threading.Thread(
+            target=open_browser_when_ready,
+            args=(app_url, host, port),
+            daemon=True
+        ).start()
+
+    app.run(host=host, port=port, debug=False, threaded=True)

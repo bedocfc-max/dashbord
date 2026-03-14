@@ -1,10 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+
+edge_driver_binary = []
+if os.path.exists('msedgedriver.exe'):
+    edge_driver_binary = [('msedgedriver.exe', '.')]
+
 
 a = Analysis(
     ['app.py'],
     pathex=[],
-    binaries=[('msedgedriver.exe', '.')],
+    binaries=edge_driver_binary,
     datas=[
         ('templates', 'templates'),
         ('static', 'static'),
@@ -52,7 +58,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
