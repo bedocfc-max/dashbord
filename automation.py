@@ -13,6 +13,11 @@ from selenium.common.exceptions import (
     ElementNotInteractableException,
     StaleElementReferenceException,
 )
+try:
+    from webdriver_manager.microsoft import EdgeChromiumDriverManager
+    _WDM_AVAILABLE = True
+except ImportError:
+    _WDM_AVAILABLE = False
 
 
 # =========================
@@ -161,8 +166,13 @@ def run_automation_phase1(username, password):
         if driver_path:
             service = Service(executable_path=driver_path)
             driver = webdriver.Edge(service=service, options=options)
+        elif _WDM_AVAILABLE:
+            # Use webdriver-manager to automatically download/locate the correct driver.
+            logging.info("msedgedriver.exe not found locally; using webdriver-manager")
+            service = Service(executable_path=EdgeChromiumDriverManager().install())
+            driver = webdriver.Edge(service=service, options=options)
         else:
-            # Fall back to Selenium Manager when local driver is not bundled.
+            # Last resort: fall back to Selenium Manager when local driver is not bundled.
             logging.info("msedgedriver.exe not found locally; using Selenium Manager")
             driver = webdriver.Edge(options=options)
         wait = WebDriverWait(driver, TIMEOUT)
