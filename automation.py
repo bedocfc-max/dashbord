@@ -2,16 +2,18 @@ import sys
 import os
 import logging
 import time
+from typing import Optional
 from selenium import webdriver
 from selenium.webdriver.edge.service import Service
 from selenium.webdriver.edge.options import Options as EdgeOptions
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import (
     TimeoutException,
     ElementNotInteractableException,
     StaleElementReferenceException,
+    WebDriverException,
 )
 
 
@@ -20,7 +22,9 @@ from selenium.common.exceptions import (
 # =========================
 def get_base_path():
     if getattr(sys, 'frozen', False):
-        return sys._MEIPASS
+        meipass: Optional[str] = getattr(sys, '_MEIPASS', None)
+        if meipass:
+            return meipass
     return os.path.dirname(os.path.abspath(__file__))
 
 
@@ -148,7 +152,6 @@ def run_automation_phase1(username, password):
     logging.info(f"Phase 1 starting for user: {username}")
 
     options = EdgeOptions()
-    options.use_chromium = True
     options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
@@ -158,13 +161,28 @@ def run_automation_phase1(username, password):
 
     try:
         driver_path = get_driver_path()
-        if driver_path:
-            service = Service(executable_path=driver_path)
-            driver = webdriver.Edge(service=service, options=options)
-        else:
-            # Fall back to Selenium Manager when local driver is not bundled.
-            logging.info("msedgedriver.exe not found locally; using Selenium Manager")
-            driver = webdriver.Edge(options=options)
+        try:
+            if driver_path:
+                service = Service(executable_path=driver_path)
+                driver = webdriver.Edge(service=service, options=options)
+            else:
+                # Fall back to Selenium Manager when local driver is not bundled.
+                logging.info("msedgedriver.exe not found locally; using Selenium Manager")
+                driver = webdriver.Edge(options=options)
+        except WebDriverException as e:
+            logging.exception("Failed to initialize Edge WebDriver")
+            if getattr(sys, 'frozen', False):
+                exe_dir = os.path.dirname(sys.executable)
+                raise Exception(
+                    "تعذر تشغيل Microsoft Edge Driver. "
+                    "ضع ملف msedgedriver.exe بجانب app.exe داخل نفس المجلد ثم أعد التشغيل. "
+                    f"المسار المطلوب: {exe_dir}"
+                ) from e
+
+            raise Exception(
+                "تعذر تشغيل Microsoft Edge Driver. "
+                "تأكد من تثبيت Edge ووجود msedgedriver.exe أو إتاحة الإنترنت لـ Selenium Manager."
+            ) from e
         wait = WebDriverWait(driver, TIMEOUT)
 
         # ---- Login ----
